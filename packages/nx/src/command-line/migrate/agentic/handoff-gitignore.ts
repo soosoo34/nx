@@ -33,26 +33,26 @@ export function isHandoffGitignoreMigration(m: {
  * Under `--agentic`, the runner writes per-run scratch under
  * `.nx/migrate-runs/<run-id>/`. The v23 migration
  * `23-0-0-add-migrate-runs-to-git-ignore` adds `.nx/migrate-runs` to
- * `.gitignore`; without intervention it would run in its declared slot
- * (typically late), so earlier per-migration commits would absorb the
- * scratch into the user-visible diff.
+ * `.gitignore`; in its declared slot (typically late) earlier per-migration
+ * commits would absorb the scratch into the user-visible diff.
  *
  * Two paths cover the leak, with no overlap:
  *
- *   1. HOIST — handled by the sort comparator in `executeMigrations`. When
- *      the v23 migration is in the queue, it sorts to position 0 and runs
- *      first via the normal migration runner (with its own log line and
- *      commit). Fully traceable in `git log`.
+ *   1. HOIST: `sortMigrations`, which `executeMigrations` applies, sorts the
+ *      v23 migration to position 0 when it is in the queue, so it runs first
+ *      through the normal runner with its own log line and commit. A
+ *      single-migration worker run needs no hoisting: the requested migration
+ *      is the entire queue.
  *
- *   2. INLINE FALLBACK — this function. When the migration is NOT in the
- *      queue AND the highest target version is < v23 (intra-pre-v23
- *      `--agentic` run), the migration won't run at all. Apply its body
- *      inline against an `FsTree` and commit it as a standalone preflight
- *      commit (or leave in the working tree under `--no-create-commits`).
+ *   2. INLINE FALLBACK, this function. When the migration is NOT in the queue
+ *      AND the highest target version is < v23 (intra-pre-v23 `--agentic`
+ *      run) it will never run, so apply its body inline against an `FsTree`
+ *      and commit it as a standalone preflight commit (or leave it in the
+ *      working tree under `--no-create-commits`).
  *
- * When the migration is not in the queue AND target >= v23, the user is
- * past v23 already. They had the entry historically; if it's gone, that's
- * a conscious removal we respect.
+ * Not in the queue AND target >= v23 means the user is already past v23. They
+ * had the entry historically; if it is gone, that is a conscious removal we
+ * respect.
  */
 export async function applyAgenticHandoffGitignoreFallback({
   migrations,
@@ -75,7 +75,8 @@ export async function applyAgenticHandoffGitignoreFallback({
   root: string;
 }): Promise<void> {
   if (migrations.some(isHandoffGitignoreMigration)) {
-    // The hoist path handles this via the sort comparator.
+    // The queue runs it itself: hoisted to the front by the sort comparator
+    // in a full run, or as the single requested migration in a worker run.
     return;
   }
   if (major(installedNxVersion) >= 23) {
