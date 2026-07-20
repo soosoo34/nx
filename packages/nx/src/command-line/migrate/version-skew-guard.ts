@@ -3,15 +3,22 @@ import { logger } from '../../utils/logger';
 import { output } from '../../utils/output';
 import { normalizeVersion } from './version-utils';
 
-// The first stable release shipping --run-migration. Deliberately the final
-// release rather than its first prerelease: 23.2.0 prereleases published
-// before the feature landed do not carry it, so a prerelease floor would
-// wrongly accept them. Permanent; never bumped at release time.
+// The first stable release shipping --run-migration/--run-id. Deliberately
+// the final release rather than its first prerelease: 23.2.0 prereleases
+// published before the feature landed do not carry it, so a prerelease floor
+// would wrongly accept them. Permanent; never bumped at release time.
 export const NEW_MIGRATE_FLAGS_FLOOR = '23.2.0';
 
-// yargs accepts both spellings and the raw argv is forwarded verbatim across
-// both migrate hops, so detection must catch each one.
-export const NEW_MIGRATE_FLAGS = ['--run-migration', '--runMigration'] as const;
+// yargs accepts both spellings of each flag and the raw argv is forwarded
+// verbatim across both migrate hops, so detection must catch every one.
+export const NEW_MIGRATE_FLAGS = [
+  '--run-migration',
+  '--runMigration',
+  '--run-id',
+  '--runId',
+  '--step-action',
+  '--stepAction',
+] as const;
 
 /**
  * Matches an exact token or `<flag>=<value>`. The `=` matters: a bare

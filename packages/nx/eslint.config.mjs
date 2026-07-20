@@ -68,12 +68,13 @@ export default [
     ignores: ['**/*.spec.ts'],
   },
   {
-    // The ignores exempt spec files (as the sibling import-boundary blocks
-    // do), run/ itself (importing its own modules directly is the normal
-    // intra-directory pattern, and it takes the engine directly because
-    // importing migrate.ts from run/ would invert the boundary) and
-    // migrate.ts, which imports execute-migration directly to be the module
-    // that re-exports it.
+    // migrate/run/ owns the durable run-state format. The ignores exempt
+    // spec files (as the sibling import-boundary blocks do), run/ itself
+    // (importing its own modules directly is the normal intra-directory
+    // pattern, and it takes the engine directly because importing
+    // migrate.ts from run/ would invert the boundary) and migrate.ts,
+    // which imports execute-migration directly to be the module that
+    // re-exports it.
     files: ['src/command-line/migrate/**/*.ts'],
     rules: {
       '@typescript-eslint/no-restricted-imports': [
