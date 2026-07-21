@@ -40,6 +40,16 @@ export interface AgenticStepResult {
   ambiguous: boolean;
 }
 
+/**
+ * `runStep` travels in the context rather than being imported by the executor,
+ * so non-agentic runs never load the agentic chain.
+ */
+export interface AgenticRunContext {
+  agentic: EnabledResolvedAgentic;
+  runDir: string;
+  runStep: typeof runAgenticPromptStep;
+}
+
 export interface RunAgenticPromptStepInput {
   root: string;
   migration: {
