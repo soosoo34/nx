@@ -206,6 +206,78 @@ describe('syncGenerator()', () => {
     ]);
   });
 
+  describe('@nx/js/typescript plugin filters', () => {
+    it('should not reference a project the plugin excludes', async () => {
+      writeJson(tree, 'nx.json', {
+        plugins: [{ plugin: '@nx/js/typescript', exclude: ['examples/**/*'] }],
+      });
+      addProject('excluded-example', [], [], 'examples/basic');
+
+      await syncGenerator(tree);
+
+      expect(readJson(tree, 'tsconfig.json').references).toEqual([
+        { path: './packages/a' },
+        { path: './packages/b' },
+      ]);
+    });
+
+    it('should reference a project claimed by a second registration', async () => {
+      // The first registration excludes e2e, the second includes it. The
+      // plugin runs for the union, so the reference must be kept.
+      writeJson(tree, 'nx.json', {
+        plugins: [
+          { plugin: '@nx/js/typescript', exclude: ['e2e/**/*'] },
+          { plugin: '@nx/js/typescript', include: ['e2e/**/*'] },
+        ],
+      });
+      addProject('e2e-app', [], [], 'e2e/app');
+
+      await syncGenerator(tree);
+
+      expect(readJson(tree, 'tsconfig.json').references).toContainEqual({
+        path: './e2e/app',
+      });
+    });
+
+    it('should not filter anything for a bare string registration', async () => {
+      writeJson(tree, 'nx.json', { plugins: ['@nx/js/typescript'] });
+      addProject('anywhere', [], [], 'examples/basic');
+
+      await syncGenerator(tree);
+
+      expect(readJson(tree, 'tsconfig.json').references).toContainEqual({
+        path: './examples/basic',
+      });
+    });
+
+    it('should not filter anything when the plugin is not registered', async () => {
+      writeJson(tree, 'nx.json', { plugins: [] });
+      addProject('anywhere', [], [], 'examples/basic');
+
+      await syncGenerator(tree);
+
+      expect(readJson(tree, 'tsconfig.json').references).toContainEqual({
+        path: './examples/basic',
+      });
+    });
+
+    it('should not report a non-composite project as out of sync', async () => {
+      addProject('not-composite', [], [], 'packages/not-composite');
+      writeJson(tree, 'packages/not-composite/tsconfig.json', {
+        compilerOptions: {},
+      });
+
+      const result = await syncGenerator(tree);
+
+      // It is filtered out before writing, so it must never be named as the
+      // reason the workspace is out of sync.
+      expect(JSON.stringify(result ?? {})).not.toContain('not-composite');
+      expect(readJson(tree, 'tsconfig.json').references).not.toContainEqual({
+        path: './packages/not-composite',
+      });
+    });
+  });
+
   describe('root tsconfig.json', () => {
     it('should sync project references to the tsconfig.json', async () => {
       expect(readJson(tree, 'tsconfig.json').references).toBeUndefined();

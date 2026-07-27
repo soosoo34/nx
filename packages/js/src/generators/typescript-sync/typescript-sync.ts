@@ -5,6 +5,8 @@ import {
   logger,
   parseJson,
   readNxJson,
+  type ExpandedPluginConfiguration,
+  type NxJsonConfiguration,
   type ProjectGraph,
   type ProjectGraphProjectNode,
   type Tree,
@@ -12,6 +14,7 @@ import {
 import ignore from 'ignore';
 import { applyEdits, modify } from 'jsonc-parser';
 import { dirname, normalize, relative } from 'node:path/posix';
+import { findMatchingConfigFiles } from 'nx/src/project-graph/utils/project-configuration-utils';
 import {
   SyncError,
   type SyncGeneratorResult,
@@ -48,6 +51,50 @@ type GeneratorOptions = {
 };
 
 type NormalizedGeneratorOptions = Required<GeneratorOptions>;
+
+const TS_PLUGIN_NAME = '@nx/js/typescript';
+
+/**
+ * Builds a predicate for whether a tsconfig is managed by `@nx/js/typescript`,
+ * honoring the `include`/`exclude` filters on its `nx.json` registrations.
+ *
+ * A project the plugin was told to skip must not be pulled into the root
+ * tsconfig's references — nested standalone workspaces are excluded there
+ * precisely because they are not part of this workspace's TypeScript build.
+ *
+ * Fails open: when the plugin is registered without filters, or not registered
+ * at all, nothing is filtered out.
+ */
+function createTypeScriptPluginFilter(
+  nxJson: NxJsonConfiguration
+): (tsconfigPath: string) => boolean {
+  const plugins = nxJson.plugins ?? [];
+
+  // A bare string registration carries no filters, so it claims everything.
+  if (plugins.some((p) => p === TS_PLUGIN_NAME)) {
+    return () => true;
+  }
+
+  const registrations = plugins
+    .filter(
+      (p): p is ExpandedPluginConfiguration =>
+        typeof p !== 'string' && p.plugin === TS_PLUGIN_NAME
+    )
+    .map((p) => ({ include: p.include ?? [], exclude: p.exclude ?? [] }));
+
+  if (registrations.length === 0) {
+    return () => true;
+  }
+
+  // Registrations are additive: one may exclude a directory that another
+  // includes, and the plugin runs for the union of what they claim.
+  return (tsconfigPath) =>
+    registrations.some(
+      ({ include, exclude }) =>
+        findMatchingConfigFiles([tsconfigPath], include, exclude).length > 0
+    );
+}
+
 type TsconfigInfoCaches = {
   composite: Map<string, boolean>;
   content: Map<string, string>;
@@ -88,6 +135,7 @@ export async function syncGenerator(tree: Tree): Promise<SyncGeneratorResult> {
   const projectGraph = await createProjectGraphAsync();
   const projectRoots = new Set<string>();
 
+  const isManagedByTypeScriptPlugin = createTypeScriptPluginFilter(nxJson);
   const tsconfigProjectNodeValues = Object.values(projectGraph.nodes).filter(
     (node) => {
       projectRoots.add(node.data.root);
@@ -95,7 +143,10 @@ export async function syncGenerator(tree: Tree): Promise<SyncGeneratorResult> {
         node.data.root,
         'tsconfig.json'
       );
-      return tsconfigExists(tree, tsconfigInfoCaches, projectTsconfigPath);
+      return (
+        tsconfigExists(tree, tsconfigInfoCaches, projectTsconfigPath) &&
+        isManagedByTypeScriptPlugin(projectTsconfigPath)
+      );
     }
   );
 
@@ -170,6 +221,18 @@ export async function syncGenerator(tree: Tree): Promise<SyncGeneratorResult> {
       const normalizedPath = normalizeReferencePath(node.data.root);
       // Skip the root tsconfig itself
       if (node.data.root !== '.' && !referencesSet.has(normalizedPath)) {
+        // Check composite here rather than only when writing, so a reference
+        // that would be filtered out below never reports the workspace as out
+        // of sync — it can never be satisfied.
+        if (
+          !hasCompositeEnabled(
+            tsSysFromTree,
+            tsconfigInfoCaches,
+            joinPathFragments(normalizedPath, 'tsconfig.json')
+          )
+        ) {
+          continue;
+        }
         referencesSet.add(normalizedPath);
         addChangedFile(
           changedFiles,
@@ -182,7 +245,7 @@ export async function syncGenerator(tree: Tree): Promise<SyncGeneratorResult> {
 
     if (changedFiles.size > 0) {
       const updatedReferences = Array.from(referencesSet)
-        // Check composite is true in the internal reference before proceeding
+        // Existing references are not re-checked above, so still filter here.
         .filter((ref) =>
           hasCompositeEnabled(
             tsSysFromTree,
