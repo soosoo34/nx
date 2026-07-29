@@ -7,7 +7,7 @@ import {
   readNxJson,
 } from '../../config/nx-json';
 import { LARGE_BUFFER } from '../../executors/run-commands/run-commands.impl';
-import { formatChangedFilesWithPrettierIfAvailable } from '../../generators/internal-utils/format-changed-files-with-prettier-if-available';
+import { formatChangedFiles } from '../../generators/internal-utils/format-changed-files';
 import { FsTree, Tree, flushChanges } from '../../generators/tree';
 import { createProjectFileMapUsingProjectGraph } from '../../project-graph/file-map-utils';
 import { createProjectGraphAsync } from '../../project-graph/project-graph';
@@ -269,7 +269,7 @@ export function createAPI(
      * Ensure that formatting is applied so that version bump diffs are as minimal as possible
      * within the context of the user's workspace.
      */
-    await formatChangedFilesWithPrettierIfAvailable(tree, { silent: true });
+    await formatChangedFiles(tree, { silent: true });
 
     printAndFlushChanges(tree, !!args.dryRun);
 
