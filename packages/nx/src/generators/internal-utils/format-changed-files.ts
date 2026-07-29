@@ -19,7 +19,7 @@ import { output } from '../../utils/output';
  * formatting. This is useful for repositories that format with a tool Nx does
  * not drive (Biome, dprint) or that have custom formatting requirements.
  */
-export async function formatChangedFilesWithPrettierIfAvailable(
+export async function formatChangedFiles(
   tree: Tree,
   options?: {
     silent?: boolean;
@@ -54,7 +54,7 @@ export async function formatChangedFilesWithPrettierIfAvailable(
   }
 }
 
-export async function formatFilesWithPrettierIfAvailable(
+export async function formatFileContents(
   files: { path: string; content: string | Buffer }[],
   root: string,
   options?: {
@@ -105,6 +105,16 @@ async function formatFilesWithPrettier(
   } catch {}
 
   if (!prettier) {
+    // Detection said prettier, so this is "configured but not installed" -
+    // the oxfmt path reports it, and silence here just leaves files
+    // unformatted with no reason given.
+    if (!options?.silent) {
+      output.warn({
+        title:
+          'prettier is configured for this workspace but is not installed.',
+        bodyLines: ['Install "prettier" to format generated files.'],
+      });
+    }
     return results;
   }
 
