@@ -38,6 +38,9 @@ export async function downloadTemplate(
         body = res.body;
         break;
       }
+      // Sandbox proxies answer blocked hosts with 403 - that is blocked
+      // egress, not a missing repo.
+      if (res.status === 403) networkError = true;
       attempts.push(`${branch}: HTTP ${res.status}`);
     } catch (e) {
       networkError = true;
@@ -46,8 +49,15 @@ export async function downloadTemplate(
   }
 
   if (!body) {
+    if (networkError) {
+      throw new CnwError(
+        'NETWORK_ERROR',
+        `Failed to download template '${template}': github.com is not reachable (${attempts.join('; ')}).\n` +
+          `Check your network and sandbox configuration and try again, or run with --preset=empty to create a minimal workspace without downloading a template and build on top of it.`
+      );
+    }
     throw new CnwError(
-      networkError ? 'NETWORK_ERROR' : 'TEMPLATE_CLONE_FAILED',
+      'TEMPLATE_CLONE_FAILED',
       `Failed to download template '${template}' (${attempts.join('; ')})`
     );
   }

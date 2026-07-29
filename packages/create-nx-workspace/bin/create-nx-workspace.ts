@@ -518,25 +518,6 @@ async function normalizeArgsMiddleware(
   try {
     rawArgs = { ...argv };
 
-    // Map invalid/legacy presets to templates for all users
-    // These presets don't exist as npm packages and would fail if not mapped
-    const invalidPresetToTemplateMap: Record<string, string> = {
-      empty: 'nrwl/empty-template',
-    };
-
-    if (rawArgs.preset && !rawArgs.template) {
-      const mappedTemplate = invalidPresetToTemplateMap[rawArgs.preset];
-      if (mappedTemplate) {
-        output.log({
-          title: `Mapping preset '${rawArgs.preset}' to template '${mappedTemplate}'`,
-        });
-        argv.template = mappedTemplate;
-        rawArgs.template = mappedTemplate;
-        delete argv.preset;
-        delete rawArgs.preset;
-      }
-    }
-
     // AI Agent Detection: When an AI agent is detected, switch to AI-optimized mode
     const aiMode = isAiAgent();
 
@@ -615,6 +596,14 @@ async function normalizeArgsMiddleware(
         title:
           "Let's create a new workspace [https://nx.dev/getting-started/intro]",
       });
+    }
+
+    // `empty` is passed by many users (including agents). Map it to the empty
+    // preset, not the template, because agents can be sandboxed and unable to
+    // download from github.com.
+    if ((argv.preset as string) === 'empty' && !argv.template) {
+      argv.preset = Preset.TS;
+      rawArgs.preset = Preset.TS;
     }
 
     argv.workspaces ??= true;

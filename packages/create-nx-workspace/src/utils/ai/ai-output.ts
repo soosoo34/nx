@@ -349,9 +349,9 @@ function getErrorHints(errorCode: CnwErrorCode | 'UNKNOWN'): string[] {
       ];
     case 'NETWORK_ERROR':
       return [
-        'Check your internet connection',
-        'Try again in a few moments',
-        'Check if npm/yarn registry is accessible',
+        'Templates download from github.com, which is not reachable from this environment',
+        'Check your network and sandbox configuration (allow https://github.com) and try again',
+        'Or re-run with --preset=empty to create a minimal workspace without downloading a template, then build on top of it',
       ];
     case 'PACKAGE_INSTALL_ERROR':
       return [
